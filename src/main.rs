@@ -31,18 +31,6 @@ struct Bandit {
     prob_est: f64,
 }
 
-impl PartialOrd for Bandit {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.prob_est < other.prob_est {
-            Some(Ordering::Less)
-        } else if self.prob_est > other.prob_est {
-            Some(Ordering::Greater)
-        } else {
-            Some(Ordering::Equal)
-        }
-    }
-}
-
 impl Bandit {
     fn new(prob_real: f64) -> Bandit {
         Bandit {
