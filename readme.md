@@ -24,6 +24,6 @@ The simulation uses an array, whose size must be statically known at compile tim
 
 ## Example
 
-<img src="https://github.com/joseph-walker/Casino/assets/14129003/cc03c774-a8d2-46b9-8812-f14f925d49f9" height="600" alt="probs" />
+<img width="600" alt="image" src="https://github.com/joseph-walker/Casino/assets/14129003/804b7d37-876e-45e9-96f0-94cad485343e" />
 
-<img src="https://github.com/joseph-walker/Casino/assets/14129003/15e1dc4b-81aa-4410-9704-0a6133df925a" height="600" alt="regret" />
+<img width="600" alt="image" src="https://github.com/joseph-walker/Casino/assets/14129003/f2a6123f-c1b3-4946-8283-a05c964c47be">
