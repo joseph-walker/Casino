@@ -1,0 +1,23 @@
+---
+title: Bandits
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+system("./target/release/bandit 0.1 0.12 0.14 0.08 0.06 0.11 0.14 0.13 0.15 0.12 50000 epsilon 0.1 > bandits.csv")
+bandit_data <- read_csv("./bandits.csv", show_col_types = FALSE) |>
+  mutate(run = row_number())
+
+bandit_data |>
+  pivot_longer(cols = starts_with("bandit_"), names_to = "bandit", values_to = "p") |>
+  ggplot(aes(x = run, y = p, color = bandit)) +
+  geom_line(size = 0.75) +
+  theme_minimal()
+
+bandit_data |>
+  ggplot(aes(x = run, y = regret)) +
+  geom_line(size = 0.75)
+```
