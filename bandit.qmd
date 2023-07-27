@@ -4,20 +4,40 @@ title: Bandits
 
 ```{r}
 library(tidyverse)
+
+theme_set(theme_minimal())
+
+run_simulation <- function (params, output) {
+  system(paste("./target/release/bandit", params, ">", output))
+  
+  bandit_data <- read_csv(output, show_col_types = FALSE) |>
+    mutate(run = row_number())
+  
+  probs <- bandit_data |>
+    pivot_longer(cols = starts_with("bandit_"), names_to = "bandit", values_to = "p") |>
+    ggplot(aes(x = run, y = p, color = bandit)) +
+    geom_line(linewidth = 0.75) +
+    labs(
+      title = "Learned Probabilities",
+      x = "Run Number",
+      y = "Probability of Success"
+    )
+
+  regret <- bandit_data |>
+    ggplot(aes(x = run, y = regret)) +
+    geom_line(linewidth = 0.75) + 
+    labs(
+      title = "Regret over Time",
+      x = "Run Number",
+      y = "Regret"
+    )
+  
+  print(probs)
+  print(regret)
+}
 ```
 
+
 ```{r}
-system("./target/release/bandit 0.1 0.12 0.14 0.08 0.06 0.11 0.14 0.13 0.15 0.12 50000 epsilon 0.1 > bandits.csv")
-bandit_data <- read_csv("./bandits.csv", show_col_types = FALSE) |>
-  mutate(run = row_number())
-
-bandit_data |>
-  pivot_longer(cols = starts_with("bandit_"), names_to = "bandit", values_to = "p") |>
-  ggplot(aes(x = run, y = p, color = bandit)) +
-  geom_line(size = 0.75) +
-  theme_minimal()
-
-bandit_data |>
-  ggplot(aes(x = run, y = regret)) +
-  geom_line(size = 0.75)
+run_simulation("0.21 0.24 0.22 0.21 0.19 0.25 0.215 0.2 0.15 0.22 50000 constant", "bandits.csv")
 ```

@@ -1,8 +1,13 @@
+# System
+.DS_Store
+
 # Rust
 /target
 
 # R
 .Rproj.user
+.RData
+.Rhistory
 
 # Ephemeral
 *.csv

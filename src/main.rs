@@ -10,6 +10,7 @@ const NUM_BANDITS: usize = 10;
 enum Strategy {
     EpsilonGreedy(f64),
     NaiveRandom,
+    ConstantFirst,
 }
 
 impl Display for Strategy {
@@ -17,6 +18,7 @@ impl Display for Strategy {
         match *self {
             Strategy::EpsilonGreedy(e) => write!(f, "Epsilon Greedy, e = {}", e),
             Strategy::NaiveRandom => write!(f, "NaiveRandom"),
+            Strategy::ConstantFirst => write!(f, "ConstantFirst"),
         }
     }
 }
@@ -31,9 +33,9 @@ struct Bandit {
 
 impl PartialOrd for Bandit {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.prob_real < other.prob_real {
+        if self.prob_est < other.prob_est {
             Some(Ordering::Less)
-        } else if self.prob_real > other.prob_real {
+        } else if self.prob_est > other.prob_est {
             Some(Ordering::Greater)
         } else {
             Some(Ordering::Equal)
@@ -101,6 +103,7 @@ impl Casino {
                     pick_bandit_epsilon_greedy(&mut rng, &mut self.bandits, e)
                 }
                 Strategy::NaiveRandom => pick_bandit_naive_random(&mut rng, &mut self.bandits),
+                Strategy::ConstantFirst => pick_first_bandit_always(&mut self.bandits),
             };
 
             let roll: f64 = rng.gen();
@@ -117,18 +120,18 @@ impl Casino {
         }
     }
 
-    fn regret(&self) -> i64 {
+    fn regret(&self) -> f64 {
         let ideal_bandit = self
             .bandits
             .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| compare_bandits_by_p_real(a, b))
             .unwrap();
 
         let ideal_bandit_true_p = ideal_bandit.prob_real;
-        let plays_so_far = self.bandits.iter().fold(0 as i64, |c, a| c + a.plays);
+        let plays_so_far = self.bandits.iter().fold(0.0, |c, a| c + a.plays as f64);
 
-        let ideal = (ideal_bandit_true_p * (plays_so_far as f64)).round() as i64;
-        let real = self.bandits.iter().fold(0 as i64, |c, a| c + a.wins);
+        let ideal = ideal_bandit_true_p * plays_so_far;
+        let real = self.bandits.iter().fold(0.0, |c, a| c + a.wins as f64);
 
         ideal - real
     }
@@ -151,6 +154,30 @@ impl Display for Casino {
     }
 }
 
+fn compare_bandits_by_p_real(bandit_a: &Bandit, bandit_b: &Bandit) -> Ordering {
+    if bandit_a.prob_real < bandit_b.prob_real {
+        Ordering::Less
+    } else if bandit_a.prob_real > bandit_b.prob_real {
+        Ordering::Greater
+    } else {
+        Ordering::Equal
+    }
+}
+
+fn compare_bandits_by_p_est(bandit_a: &Bandit, bandit_b: &Bandit) -> Ordering {
+    if bandit_a.prob_est < bandit_b.prob_est {
+        Ordering::Less
+    } else if bandit_a.prob_est > bandit_b.prob_est {
+        Ordering::Greater
+    } else {
+        Ordering::Equal
+    }
+}
+
+fn pick_first_bandit_always(bandits: &mut [Bandit; NUM_BANDITS]) -> &mut Bandit {
+    &mut bandits[0]
+}
+
 fn pick_bandit_epsilon_greedy<'rng, 'ban>(
     rng: &'rng mut ThreadRng,
     bandits: &'ban mut [Bandit],
@@ -170,7 +197,7 @@ fn pick_bandit_epsilon_greedy<'rng, 'ban>(
         // The bandit to play will be the one with the highest known probability
         bandit = &mut *bandits
             .iter_mut()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| compare_bandits_by_p_est(a, b))
             .unwrap();
     }
 
@@ -231,7 +258,8 @@ fn main() {
             Strategy::EpsilonGreedy(epsilon)
         }
         "naive" => Strategy::NaiveRandom,
-        _ => panic!("Final arg must be a strategy"),
+        "constant" => Strategy::ConstantFirst,
+        _ => panic!("Final arg must be one of (epsilon n, naive, constant)"),
     };
 
     run_casino_with_params(num_plays, probs.try_into().unwrap(), strategy);
