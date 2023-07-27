@@ -17,3 +17,7 @@ cargo build -r
 ```
 
 The Quarto journal has an invocation of the built simulation and is already hooked up to inspect it.
+
+## Changing the Number of Bandits
+
+The simulation uses an array, whose size must be statically known at compile time. It is controlled through the `NUM_BANDITS` const - change this value to update the number of choices in the simulation.
