@@ -3,12 +3,15 @@ use std::env;
 use std::fmt::{Display, Write};
 
 use rand::prelude::*;
+use rand_distr::Beta;
 
 const NUM_BANDITS: usize = 10;
 
 #[derive(Debug)]
 enum Strategy {
+    Oracle,
     EpsilonGreedy(f64),
+    Thompson,
     NaiveRandom,
     ConstantFirst,
 }
@@ -16,7 +19,9 @@ enum Strategy {
 impl Display for Strategy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
+            Strategy::Oracle => write!(f, "Oracle"),
             Strategy::EpsilonGreedy(e) => write!(f, "Epsilon Greedy, e = {}", e),
+            Strategy::Thompson => write!(f, "Thompson Sampling"),
             Strategy::NaiveRandom => write!(f, "NaiveRandom"),
             Strategy::ConstantFirst => write!(f, "ConstantFirst"),
         }
@@ -72,13 +77,13 @@ impl Casino {
         let mut rng = rand::thread_rng();
 
         let headers = (1..=NUM_BANDITS)
-            .map(|i| format!("bandit_{}", i))
+            .map(|i| format!("bandit_prob_{}", i))
             .collect::<Vec<String>>()
             .join(",");
 
         println!("{headers},regret");
 
-        for _ in 1..self.num_plays {
+        for _ in 0..self.num_plays {
             let snapshot = self
                 .bandits
                 .iter()
@@ -87,9 +92,11 @@ impl Casino {
                 .join(",");
 
             let mut bandit = match self.strategy {
+                Strategy::Oracle => pick_bandit_oracle(&mut self.bandits),
                 Strategy::EpsilonGreedy(e) => {
                     pick_bandit_epsilon_greedy(&mut rng, &mut self.bandits, e)
                 }
+                Strategy::Thompson => pick_bandit_thompson(&mut rng, &mut self.bandits),
                 Strategy::NaiveRandom => pick_bandit_naive_random(&mut rng, &mut self.bandits),
                 Strategy::ConstantFirst => pick_first_bandit_always(&mut self.bandits),
             };
@@ -162,7 +169,14 @@ fn compare_bandits_by_p_est(bandit_a: &Bandit, bandit_b: &Bandit) -> Ordering {
     }
 }
 
-fn pick_first_bandit_always(bandits: &mut [Bandit; NUM_BANDITS]) -> &mut Bandit {
+fn pick_bandit_oracle(bandits: &mut [Bandit]) -> &mut Bandit {
+    bandits
+        .iter_mut()
+        .max_by(|a, b| compare_bandits_by_p_real(a, b))
+        .unwrap()
+}
+
+fn pick_first_bandit_always(bandits: &mut [Bandit]) -> &mut Bandit {
     &mut bandits[0]
 }
 
@@ -190,6 +204,26 @@ fn pick_bandit_epsilon_greedy<'rng, 'ban>(
     }
 
     bandit
+}
+
+fn pick_bandit_thompson<'rng, 'ban>(
+    rng: &'rng mut ThreadRng,
+    bandits: &'ban mut [Bandit],
+) -> &'ban mut Bandit {
+    let (bandits_theta, _) = bandits
+        .iter_mut()
+        .map(|b| {
+            let wins = b.wins as f64;
+            let losses = (b.plays as f64) - wins;
+
+            let theta = Beta::new(wins + 1.0, losses + 1.0).unwrap().sample(rng);
+
+            (b, theta)
+        })
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        .unwrap();
+
+    bandits_theta
 }
 
 fn pick_bandit_naive_random<'rng, 'ban>(
@@ -238,6 +272,7 @@ fn main() {
         .expect(format!("Arg {} must be `epsilon n` or `naive`", NUM_BANDITS + 2).as_str())
         .as_str()
     {
+        "oracle" => Strategy::Oracle,
         "epsilon" => {
             let epsilon = args
                 .next()
@@ -245,6 +280,7 @@ fn main() {
                 .expect("Epsilon strategy requires e value of type f64");
             Strategy::EpsilonGreedy(epsilon)
         }
+        "thompson" => Strategy::Thompson,
         "naive" => Strategy::NaiveRandom,
         "constant" => Strategy::ConstantFirst,
         _ => panic!("Final arg must be one of (epsilon n, naive, constant)"),

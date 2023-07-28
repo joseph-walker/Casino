@@ -14,7 +14,7 @@ run_simulation <- function (params, output) {
     mutate(run = row_number())
   
   probs <- bandit_data |>
-    pivot_longer(cols = starts_with("bandit_"), names_to = "bandit", values_to = "p") |>
+    pivot_longer(cols = starts_with("bandit_prob_"), names_to = "bandit", values_to = "p") |>
     ggplot(aes(x = run, y = p, color = bandit)) +
     geom_line(linewidth = 0.75) +
     labs(
@@ -34,10 +34,80 @@ run_simulation <- function (params, output) {
   
   print(probs)
   print(regret)
+  
+  return(bandit_data)
 }
 ```
 
 
 ```{r}
-run_simulation("0.21 0.24 0.22 0.21 0.19 0.25 0.215 0.2 0.15 0.22 50000 constant", "bandits.csv")
+run_simulation("0.22 0.21 0.215 0.2175 0.19 0.36 0.215 0.2 0.15 0.22 50000 oracle", "bandits.csv")
 ```
+
+```{r}
+probs <- "0.22 0.21 0.215 0.2175 0.19 0.23 0.215 0.2 0.15 0.22"
+samples <- "50000"
+
+system(paste("./target/release/bandit", probs, samples, " oracle > oracle.csv"))
+system(paste("./target/release/bandit", probs, samples, " constant > constant.csv"))
+system(paste("./target/release/bandit", probs, samples, " naive > naive.csv"))
+system(paste("./target/release/bandit", probs, samples, " epsilon 0.05 > epsilon.csv"))
+system(paste("./target/release/bandit", probs, samples, " thompson > thompson.csv"))
+```
+
+```{r}
+bandit_oracle <- read_csv("oracle.csv", show_col_types = FALSE) |>
+  mutate(run = row_number()) |>
+  rename_with(~ paste("oracle_", ., sep = ""), !matches("run"))
+
+bandit_const <- read_csv("constant.csv", show_col_types = FALSE) |>
+  mutate(run = row_number()) |>
+  rename_with(~ paste("constant_", ., sep = ""), !matches("run"))
+
+bandit_naive <- read_csv("naive.csv", show_col_types = FALSE) |>
+  mutate(run = row_number()) |>
+  rename_with(~ paste("naive_", ., sep = ""), !matches("run"))
+
+bandit_epsilon <- read_csv("epsilon.csv", show_col_types = FALSE) |>
+  mutate(run = row_number()) |>
+  rename_with(~ paste("epsilon_", ., sep = ""), !matches("run"))
+
+bandit_thompson <- read_csv("thompson.csv", show_col_types = FALSE) |>
+  mutate(run = row_number()) |>
+  rename_with(~ paste("thompson_", ., sep = ""), !matches("run"))
+
+run <- join_by(run == run)
+bandits <- bandit_oracle |>
+  inner_join(bandit_const, run) |>
+  inner_join(bandit_naive, run) |>
+  inner_join(bandit_epsilon, run) |>
+  inner_join(bandit_thompson, run)
+
+bandits |> select(run, matches("regret")) |>
+  pivot_longer(cols = matches(("regret")), names_pattern = "(.*?)_regret", names_to = "strategy", values_to = "regret") |>
+  ggplot(aes(x = run, y = regret, color = strategy)) +
+  geom_line(linewidth = 0.75) +
+  scale_x_continuous(label = scales::comma) +
+  scale_y_continuous(label = scales::comma) +
+  labs(
+    title = "Regret Race",
+    x = "Impressions",
+    y = "Lost Clicks",
+    color = "Strategy"
+  )
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
