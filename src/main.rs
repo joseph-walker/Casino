@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::env;
+use std::f64::consts;
 use std::fmt::{Display, Write};
 
 use rand::prelude::*;
@@ -10,10 +11,12 @@ const NUM_BANDITS: usize = 10;
 #[derive(Debug)]
 enum Strategy {
     Oracle,
-    EpsilonGreedy(f64),
+    EpsilonGreedy(f64),     // ε
+    EpsilonDecay(f64, f64), // ε, α
     Thompson,
     NaiveRandom,
     ConstantFirst,
+    TedCruz
 }
 
 impl Display for Strategy {
@@ -21,9 +24,11 @@ impl Display for Strategy {
         match *self {
             Strategy::Oracle => write!(f, "Oracle"),
             Strategy::EpsilonGreedy(e) => write!(f, "Epsilon Greedy, e = {}", e),
+            Strategy::EpsilonDecay(e, a) => write!(f, "Epsilon Decay, e = {}, a = {}", e, a),
             Strategy::Thompson => write!(f, "Thompson Sampling"),
             Strategy::NaiveRandom => write!(f, "NaiveRandom"),
             Strategy::ConstantFirst => write!(f, "ConstantFirst"),
+            Strategy::TedCruz => write!(f, "Ted Cruz Sampling")
         }
     }
 }
@@ -96,9 +101,13 @@ impl Casino {
                 Strategy::EpsilonGreedy(e) => {
                     pick_bandit_epsilon_greedy(&mut rng, &mut self.bandits, e)
                 }
+                Strategy::EpsilonDecay(e, a) => {
+                    pick_bandit_epsilon_decay(&mut rng, &mut self.bandits, e, a)
+                }
                 Strategy::Thompson => pick_bandit_thompson(&mut rng, &mut self.bandits),
                 Strategy::NaiveRandom => pick_bandit_naive_random(&mut rng, &mut self.bandits),
                 Strategy::ConstantFirst => pick_first_bandit_always(&mut self.bandits),
+                Strategy::TedCruz => pick_bandit_with_ted_cruz_sampling(&mut self.bandits)
             };
 
             let roll: f64 = rng.gen();
@@ -178,6 +187,30 @@ fn pick_bandit_oracle(bandits: &mut [Bandit]) -> &mut Bandit {
 
 fn pick_first_bandit_always(bandits: &mut [Bandit]) -> &mut Bandit {
     &mut bandits[0]
+}
+
+fn pick_bandit_epsilon_decay<'rng, 'ban>(
+    rng: &'rng mut ThreadRng,
+    bandits: &'ban mut [Bandit],
+    epsilon_not: f64,
+    alpha: f64,
+) -> &'ban mut Bandit {
+    // An epsilon decay is an epsilon greedy with a decaying epsilon
+    // value. The epsilon value is inversely proportional to the number
+    // of runs, and as runs -> ∞, epsilon -> 0
+    let t = bandits.iter().fold(0, |c, b| c + b.plays) as f64;
+    let epsilon_mod = epsilon_not * consts::E.powf(-1.0 * alpha * t);
+
+    pick_bandit_epsilon_greedy(rng, bandits, epsilon_mod)
+}
+
+fn pick_bandit_with_ted_cruz_sampling(bandits: &mut [Bandit]) -> &mut Bandit {
+    let worst_possible_option = bandits
+        .iter_mut()
+        .max_by(|a, b| compare_bandits_by_p_real(b, a))
+        .unwrap();
+
+    worst_possible_option
 }
 
 fn pick_bandit_epsilon_greedy<'rng, 'ban>(
@@ -279,10 +312,24 @@ fn main() {
                 .and_then(|e| e.parse::<f64>().ok())
                 .expect("Epsilon strategy requires e value of type f64");
             Strategy::EpsilonGreedy(epsilon)
+        },
+        "decay" => {
+            let epsilon = args
+                .next()
+                .and_then(|e| e.parse::<f64>().ok())
+                .expect("Epsilon strategy requires e value of type f64");
+
+            let alpha = args
+                .next()
+                .and_then(|e| e.parse::<f64>().ok())
+                .expect("Epsilon strategy requires a value of type f64");
+
+            Strategy::EpsilonDecay(epsilon, alpha)
         }
         "thompson" => Strategy::Thompson,
         "naive" => Strategy::NaiveRandom,
         "constant" => Strategy::ConstantFirst,
+        "cruz" => Strategy::TedCruz,
         _ => panic!("Final arg must be one of (epsilon n, naive, constant)"),
     };
 

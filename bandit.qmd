@@ -41,18 +41,20 @@ run_simulation <- function (params, output) {
 
 
 ```{r}
-run_simulation("0.22 0.21 0.215 0.2175 0.19 0.36 0.215 0.2 0.15 0.22 50000 oracle", "bandits.csv")
+run_simulation("0.22 0.21 0.215 0.2175 0.19 0.36 0.215 0.2 0.15 0.22 5000 decay 0.75 0.005", "bandits.csv")
 ```
 
 ```{r}
-probs <- "0.22 0.21 0.215 0.2175 0.19 0.23 0.215 0.2 0.15 0.22"
+probs <- "0.20 0.21 0.215 0.2175 0.19 0.23 0.215 0.2 0.15 0.22"
 samples <- "50000"
 
 system(paste("./target/release/bandit", probs, samples, " oracle > oracle.csv"))
 system(paste("./target/release/bandit", probs, samples, " constant > constant.csv"))
 system(paste("./target/release/bandit", probs, samples, " naive > naive.csv"))
-system(paste("./target/release/bandit", probs, samples, " epsilon 0.05 > epsilon.csv"))
+system(paste("./target/release/bandit", probs, samples, " epsilon 0.1 > epsilon.csv"))
+system(paste("./target/release/bandit", probs, samples, " decay 0.75 0.01 > decay.csv"))
 system(paste("./target/release/bandit", probs, samples, " thompson > thompson.csv"))
+system(paste("./target/release/bandit", probs, samples, " cruz > cruz.csv"))
 ```
 
 ```{r}
@@ -72,16 +74,26 @@ bandit_epsilon <- read_csv("epsilon.csv", show_col_types = FALSE) |>
   mutate(run = row_number()) |>
   rename_with(~ paste("epsilon_", ., sep = ""), !matches("run"))
 
+bandit_decay <- read_csv("decay.csv", show_col_types = FALSE) |>
+  mutate(run = row_number()) |>
+  rename_with(~ paste("decay_", ., sep = ""), !matches("run"))
+
 bandit_thompson <- read_csv("thompson.csv", show_col_types = FALSE) |>
   mutate(run = row_number()) |>
   rename_with(~ paste("thompson_", ., sep = ""), !matches("run"))
+
+bandit_cruz <- read_csv("cruz.csv", show_col_types = FALSE) |>
+  mutate(run = row_number()) |>
+  rename_with(~ paste("cruz_", ., sep = ""), !matches("run"))
 
 run <- join_by(run == run)
 bandits <- bandit_oracle |>
   inner_join(bandit_const, run) |>
   inner_join(bandit_naive, run) |>
   inner_join(bandit_epsilon, run) |>
-  inner_join(bandit_thompson, run)
+  inner_join(bandit_decay, run) |>
+  inner_join(bandit_thompson, run) |>
+  inner_join(bandit_cruz, run)
 
 bandits |> select(run, matches("regret")) |>
   pivot_longer(cols = matches(("regret")), names_pattern = "(.*?)_regret", names_to = "strategy", values_to = "regret") |>
